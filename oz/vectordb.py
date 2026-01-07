@@ -5,7 +5,6 @@ from typing import Any
 
 import numpy as np
 
-
 class DistanceMetric(str, Enum):
     COSINE = "cosine"
     DOT_PRODUCT = "dot"
@@ -28,6 +27,7 @@ class VectorDB:
         self.vectors: np.ndarray | None = None
         self.ids: list[str] = []
         self.metadata: dict[str, dict[str, Any]] = {}
+
 
     def insert(self, id: str, vector: np.ndarray, metadata: dict[str, Any] | None = None) -> None:
         """Insert a vector with its ID and optional metadata.
@@ -126,6 +126,49 @@ class VectorDB:
     def _euclidean_distance(self, query: np.ndarray) -> np.ndarray:
         """Compute euclidean distance between query and all vectors."""
         return np.linalg.norm(self.vectors - query, axis=1)
+
+    def delete_by_source(self, source_url: str) -> int:
+        """Delete all vectors with matching source_url in metadata.
+
+        Args:
+            source_url: The source URL to match in metadata
+
+        Returns:
+            Number of vectors deleted
+        """
+        if self.vectors is None or len(self.ids) == 0:
+            return 0
+
+        # Find indices to keep (those that DON'T match the source_url)
+        indices_to_keep = []
+        indices_to_delete = []
+
+        for i, doc_id in enumerate(self.ids):
+            meta = self.metadata.get(doc_id, {})
+            if meta.get("source_url") == source_url:
+                indices_to_delete.append(i)
+            else:
+                indices_to_keep.append(i)
+
+        if not indices_to_delete:
+            return 0
+
+        # Remove from metadata dict
+        for i in indices_to_delete:
+            doc_id = self.ids[i]
+            if doc_id in self.metadata:
+                del self.metadata[doc_id]
+
+        # Update vectors and ids
+        if indices_to_keep:
+            self.vectors = self.vectors[indices_to_keep]
+            self.ids = [self.ids[i] for i in indices_to_keep]
+        else:
+            # All vectors deleted
+            self.vectors = None
+            self.ids = []
+
+        return len(indices_to_delete)
 
     def __len__(self) -> int:
         """Return the number of vectors in the database."""

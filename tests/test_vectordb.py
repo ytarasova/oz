@@ -262,3 +262,62 @@ class TestEuclideanDistance:
 
         # Distance from origin to (3,4) is 5
         assert abs(results[0]["score"] - 5.0) < 1e-6
+
+
+class TestDeleteBySource:
+    """Tests for delete_by_source method."""
+
+    def test_delete_by_source_removes_matching_entries(self):
+        """Test that delete_by_source removes entries with matching source_url."""
+        db = VectorDB(dimension=2)
+        db.insert("a", np.array([1.0, 0.0]), {"text": "first", "source_url": "http://example.com"})
+        db.insert("b", np.array([0.0, 1.0]), {"text": "second", "source_url": "http://example.com"})
+        db.insert("c", np.array([1.0, 1.0]), {"text": "third", "source_url": "http://other.com"})
+
+        deleted = db.delete_by_source("http://example.com")
+
+        assert deleted == 2
+        assert len(db) == 1
+        assert db.ids == ["c"]
+
+    def test_delete_by_source_returns_zero_when_no_match(self):
+        """Test that delete_by_source returns 0 when no matches."""
+        db = VectorDB(dimension=2)
+        db.insert("a", np.array([1.0, 0.0]), {"text": "first", "source_url": "http://example.com"})
+
+        deleted = db.delete_by_source("http://nonexistent.com")
+
+        assert deleted == 0
+        assert len(db) == 1
+
+    def test_delete_by_source_on_empty_db(self):
+        """Test delete_by_source on empty database."""
+        db = VectorDB(dimension=2)
+
+        deleted = db.delete_by_source("http://example.com")
+
+        assert deleted == 0
+
+    def test_delete_by_source_removes_all_entries(self):
+        """Test delete_by_source when all entries match."""
+        db = VectorDB(dimension=2)
+        db.insert("a", np.array([1.0, 0.0]), {"source_url": "http://example.com"})
+        db.insert("b", np.array([0.0, 1.0]), {"source_url": "http://example.com"})
+
+        deleted = db.delete_by_source("http://example.com")
+
+        assert deleted == 2
+        assert len(db) == 0
+        assert db.vectors is None
+
+    def test_delete_by_source_preserves_search(self):
+        """Test that search still works after delete_by_source."""
+        db = VectorDB(dimension=2)
+        db.insert("a", np.array([1.0, 0.0]), {"text": "first", "source_url": "http://delete.com"})
+        db.insert("b", np.array([0.0, 1.0]), {"text": "second", "source_url": "http://keep.com"})
+
+        db.delete_by_source("http://delete.com")
+
+        results = db.search(np.array([0.0, 1.0]), k=5)
+        assert len(results) == 1
+        assert results[0]["id"] == "b"

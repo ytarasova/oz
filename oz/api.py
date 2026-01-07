@@ -16,11 +16,12 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, HttpUrl
 from pydantic_settings import BaseSettings
 
 from .chat import RAGChat
 from .embeddings import Embedder
+from .ingestion import ingest_url
 from .vectordb import DistanceMetric, VectorDB
 
 
@@ -228,6 +229,52 @@ async def chat(
         answer=answer,
         sources=sources,
     )
+
+
+class IngestRequest(BaseModel):
+    url: HttpUrl
+
+
+class IngestResponse(BaseModel):
+    url: str
+    title: str
+    chunks_added: int
+    chunks_deleted: int
+
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest(
+    request: IngestRequest,
+    db: Annotated[VectorDB, Depends(get_db)],
+    embedder: Annotated[Embedder, Depends(get_embedder)],
+    normalize: Annotated[bool, Depends(get_normalize)],
+):
+    """Ingest a URL into the vector database.
+
+    Crawls the URL, extracts content, chunks by paragraphs,
+    and stores embeddings with source metadata.
+
+    Args:
+        request: Ingest request with URL
+        db: Vector database (injected)
+        embedder: Embedding model (injected)
+        normalize: Whether to normalize embeddings (injected)
+
+    Returns:
+        Ingest result with chunk counts
+    """
+    try:
+        result = await ingest_url(
+            url=str(request.url),
+            db=db,
+            embedder=embedder,
+            normalize=normalize,
+        )
+        return IngestResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
 # Mount static files (after routes so / doesn't conflict)
