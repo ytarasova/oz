@@ -27,6 +27,7 @@ from .vectordb import DistanceMetric, VectorDB
 # Settings with environment variable support
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
+    normalize_embeddings: bool = True
 
     class Config:
         env_file = ".env"
@@ -45,6 +46,7 @@ class AppState:
     def __init__(self):
         self.db: VectorDB | None = None
         self.embedder: Embedder | None = None
+        self.normalize: bool = True
 
 
 # Global state instance - populated by lifespan
@@ -54,9 +56,13 @@ app_state = AppState()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - initialize on startup, cleanup on shutdown."""
+    settings = get_settings()
+
     # Startup
     print("Loading embedder...")
     app_state.embedder = Embedder()
+    app_state.normalize = settings.normalize_embeddings
+    print(f"Normalization: {'enabled' if app_state.normalize else 'disabled'}")
 
     print("Initializing vector database...")
     app_state.db = VectorDB(dimension=app_state.embedder.dimension)
@@ -71,7 +77,7 @@ async def lifespan(app: FastAPI):
         # Extract texts and embed
         texts = [entry["metadata"]["text"] for entry in blogs]
         print(f"Embedding {len(texts)} blog entries...")
-        vectors = app_state.embedder.encode_batch(texts)
+        vectors = app_state.embedder.encode_batch(texts, normalize=app_state.normalize)
 
         # Insert into database
         for entry, vector in zip(blogs, vectors):
@@ -123,6 +129,11 @@ def get_embedder() -> Embedder:
     return app_state.embedder
 
 
+def get_normalize() -> bool:
+    """Dependency to get the normalization setting."""
+    return app_state.normalize
+
+
 def get_anthropic_client(
     settings: Annotated[Settings, Depends(get_settings)]
 ) -> anthropic.Anthropic:
@@ -139,9 +150,10 @@ def get_rag_chat(
     db: Annotated[VectorDB, Depends(get_db)],
     embedder: Annotated[Embedder, Depends(get_embedder)],
     client: Annotated[anthropic.Anthropic, Depends(get_anthropic_client)],
+    normalize: Annotated[bool, Depends(get_normalize)],
 ) -> RAGChat:
     """Dependency to get the RAG chat service."""
-    return RAGChat(client=client, db=db, embedder=embedder)
+    return RAGChat(client=client, db=db, embedder=embedder, normalize=normalize)
 
 
 @app.get("/")
@@ -155,6 +167,7 @@ async def root():
 async def search(
     db: Annotated[VectorDB, Depends(get_db)],
     embedder: Annotated[Embedder, Depends(get_embedder)],
+    normalize: Annotated[bool, Depends(get_normalize)],
     query: str = Query(..., description="Search query text"),
     k: int = Query(5, ge=1, le=100, description="Number of results to return"),
     metric: DistanceMetric = Query(DistanceMetric.COSINE, description="Distance metric"),
@@ -164,6 +177,7 @@ async def search(
     Args:
         db: Vector database (injected)
         embedder: Embedding model (injected)
+        normalize: Whether to normalize embeddings (injected from config)
         query: The search query text
         k: Number of results to return (default 5)
         metric: Distance metric (cosine, dot, euclidean)
@@ -171,7 +185,7 @@ async def search(
     Returns:
         List of matching blog entries with scores
     """
-    query_vector = embedder.encode(query)
+    query_vector = embedder.encode(query, normalize=normalize)
     results = db.search(query_vector, k=k, metric=metric)
 
     return {

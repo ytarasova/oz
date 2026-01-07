@@ -46,6 +46,7 @@ class RAGChat:
         max_tokens: int = 1024,
         system_prompt: str = SYSTEM_PROMPT,
         prompt_template: str = RAG_PROMPT_TEMPLATE,
+        normalize: bool = True,
     ):
         """Initialize RAG chat service.
 
@@ -57,6 +58,7 @@ class RAGChat:
             max_tokens: Maximum response tokens
             system_prompt: System prompt setting assistant behavior
             prompt_template: Template with {context} and {question} placeholders
+            normalize: Whether to normalize embeddings
         """
         self.client = client
         self.db = db
@@ -65,6 +67,7 @@ class RAGChat:
         self.max_tokens = max_tokens
         self.system_prompt = system_prompt
         self.prompt_template = prompt_template
+        self.normalize = normalize
 
     def retrieve(self, query: str, k: int = 5) -> list[dict]:
         """Retrieve relevant documents for a query.
@@ -76,7 +79,7 @@ class RAGChat:
         Returns:
             List of retrieved documents with scores
         """
-        query_vector = self.embedder.encode(query)
+        query_vector = self.embedder.encode(query, normalize=self.normalize)
         return self.db.search(query_vector, k=k, metric=DistanceMetric.COSINE)
 
     def build_context(self, results: list[dict]) -> str:
