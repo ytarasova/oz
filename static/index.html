@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oz Vector Search</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            color: #fff;
+        }
+
+        .subtitle {
+            color: #888;
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            color: #888;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: #252525;
+        }
+
+        .tab.active {
+            background: #2a2a2a;
+            color: #fff;
+            border-color: #444;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 1rem;
+            font-size: 1rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            outline: none;
+        }
+
+        input[type="text"]:focus {
+            border-color: #555;
+        }
+
+        input[type="text"]::placeholder {
+            color: #666;
+        }
+
+        button {
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #2563eb;
+        }
+
+        button:disabled {
+            background: #333;
+            cursor: not-allowed;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+
+        select {
+            padding: 0.5rem 1rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #fff;
+            outline: none;
+        }
+
+        label {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .results {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .result-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+
+        .result-card:hover {
+            border-color: #444;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .result-id {
+            font-family: monospace;
+            font-size: 0.8rem;
+            color: #666;
+        }
+
+        .result-score {
+            font-size: 0.85rem;
+            color: #3b82f6;
+            font-weight: 500;
+        }
+
+        .result-text {
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .chat-container {
+            display: none;
+        }
+
+        .chat-container.active {
+            display: block;
+        }
+
+        .search-container.active {
+            display: block;
+        }
+
+        .search-container {
+            display: none;
+        }
+
+        .chat-messages {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+        }
+
+        .message {
+            margin-bottom: 1.5rem;
+        }
+
+        .message:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-role {
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .message-role.user {
+            color: #3b82f6;
+        }
+
+        .message-role.assistant {
+            color: #10b981;
+        }
+
+        .message-content {
+            line-height: 1.6;
+            color: #ccc;
+        }
+
+        .sources-toggle {
+            font-size: 0.85rem;
+            color: #888;
+            cursor: pointer;
+            margin-top: 0.75rem;
+        }
+
+        .sources-toggle:hover {
+            color: #aaa;
+        }
+
+        .sources-list {
+            display: none;
+            margin-top: 0.75rem;
+            padding: 0.75rem;
+            background: #252525;
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .sources-list.visible {
+            display: block;
+        }
+
+        .source-item {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #333;
+            color: #999;
+        }
+
+        .source-item:last-child {
+            border-bottom: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+
+        .error {
+            background: #2d1f1f;
+            border: 1px solid #5c3333;
+            border-radius: 8px;
+            padding: 1rem;
+            color: #f87171;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Oz</h1>
+        <p class="subtitle">Vector Search & RAG Chat</p>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="search">Search</div>
+            <div class="tab" data-tab="chat">Chat</div>
+        </div>
+
+        <!-- Search Tab -->
+        <div class="search-container active" id="search-tab">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search blog posts..." />
+                <button id="search-btn">Search</button>
+            </div>
+
+            <div class="controls">
+                <label>Results:</label>
+                <select id="k-select">
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                </select>
+
+                <label>Metric:</label>
+                <select id="metric-select">
+                    <option value="cosine" selected>Cosine</option>
+                    <option value="dot">Dot Product</option>
+                    <option value="euclidean">Euclidean</option>
+                </select>
+            </div>
+
+            <div class="results" id="results"></div>
+        </div>
+
+        <!-- Chat Tab -->
+        <div class="chat-container" id="chat-tab">
+            <div class="chat-messages" id="chat-messages"></div>
+
+            <div class="search-box">
+                <input type="text" id="chat-input" placeholder="Ask a question about the blog posts..." />
+                <button id="chat-btn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                const tabName = tab.dataset.tab;
+                document.getElementById('search-tab').classList.toggle('active', tabName === 'search');
+                document.getElementById('chat-tab').classList.toggle('active', tabName === 'chat');
+            });
+        });
+
+        // Search functionality
+        const searchInput = document.getElementById('search-input');
+        const searchBtn = document.getElementById('search-btn');
+        const resultsDiv = document.getElementById('results');
+        const kSelect = document.getElementById('k-select');
+        const metricSelect = document.getElementById('metric-select');
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            const k = kSelect.value;
+            const metric = metricSelect.value;
+
+            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+            searchBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/search?query=${encodeURIComponent(query)}&k=${k}&metric=${metric}`);
+                const data = await response.json();
+
+                if (data.results && data.results.length > 0) {
+                    resultsDiv.innerHTML = data.results.map(result => `
+                        <div class="result-card">
+                            <div class="result-header">
+                                <span class="result-id">${result.id.slice(0, 8)}...</span>
+                                <span class="result-score">Score: ${result.score.toFixed(4)}</span>
+                            </div>
+                            <div class="result-text">${result.metadata.text}</div>
+                        </div>
+                    `).join('');
+                } else {
+                    resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                searchBtn.disabled = false;
+            }
+        }
+
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        // Chat functionality
+        const chatInput = document.getElementById('chat-input');
+        const chatBtn = document.getElementById('chat-btn');
+        const chatMessages = document.getElementById('chat-messages');
+
+        async function sendMessage() {
+            const query = chatInput.value.trim();
+            if (!query) return;
+
+            // Add user message
+            chatMessages.innerHTML += `
+                <div class="message">
+                    <div class="message-role user">You</div>
+                    <div class="message-content">${escapeHtml(query)}</div>
+                </div>
+            `;
+
+            chatInput.value = '';
+            chatBtn.disabled = true;
+
+            // Add loading indicator
+            const loadingId = 'loading-' + Date.now();
+            chatMessages.innerHTML += `<div class="message" id="${loadingId}">
+                <div class="message-role assistant">Assistant</div>
+                <div class="message-content">Thinking...</div>
+            </div>`;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, k: 5 })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const sourcesId = 'sources-' + Date.now();
+                    document.getElementById(loadingId).innerHTML = `
+                        <div class="message-role assistant">Assistant</div>
+                        <div class="message-content">${escapeHtml(data.answer)}</div>
+                        <div class="sources-toggle" onclick="toggleSources('${sourcesId}')">
+                            Show sources (${data.sources.length})
+                        </div>
+                        <div class="sources-list" id="${sourcesId}">
+                            ${data.sources.map((s, i) => `
+                                <div class="source-item">[${i+1}] ${escapeHtml(s.metadata.text.slice(0, 150))}...</div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    document.getElementById(loadingId).innerHTML = `
+                        <div class="message-role assistant">Assistant</div>
+                        <div class="message-content error">${data.detail || 'Error occurred'}</div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById(loadingId).innerHTML = `
+                    <div class="message-role assistant">Assistant</div>
+                    <div class="message-content error">Error: ${error.message}</div>
+                `;
+            } finally {
+                chatBtn.disabled = false;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+        }
+
+        function toggleSources(id) {
+            document.getElementById(id).classList.toggle('visible');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        chatBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+    </script>
+</body>
+</html>

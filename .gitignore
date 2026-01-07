@@ -15,3 +15,26 @@ htmlcov/
 
 # pytest
 .pytest_cache/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model cache
+.cache/
+huggingface/
+
+# Claude
+settings.local.json
